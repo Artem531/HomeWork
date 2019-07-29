@@ -266,6 +266,167 @@ class KittiDataset(torch.utils.data.Dataset):
     # %>-------------------- Annotations --------------------<%#
     # %>-----------------------------------------------------<%#
 
+    def get_anno_without_file(self, labels, calib):
+        annotations = []
+        for label in labels:
+            label = label.strip()
+            if not label:
+                continue
+
+            anno = Dict()
+            #anno.index = index
+            #anno.filenumber = self._numbers[index]
+
+            label = label.split(' ')
+
+            anno.type = label[0]  # 'Car', 'Cyclist', 'Pedestrian', ...
+            anno.cls = Config.dataset.type2cls[anno.type]
+            if anno.cls == Config.dataset.remove_cls:
+                continue
+
+            anno.color = Config.dataset.cls2color[anno.cls]
+            label = list(map(float, label[1:]))
+
+            anno.truncated = label[0]  # truncated pixel ratio ([0..1])
+            anno.occluded  = int(label[1])  # 0 = visible, 1 = partly occluded, 2 = fully occluded, 3 = unknown
+            anno.alpha     = label[2]  # object observation angle ([-pi..pi])
+
+                #                 # 2D bounding box of object in the image (0-based index): contains left, top, right, bottom pixel coordinates
+                #                 anno.bbox2d.x1 = label[3]  # left
+                #                 anno.bbox2d.x2 = label[4]  # top
+                #                 anno.bbox2d.y1 = label[5]  # right
+                #                 anno.bbox2d.y2 = label[6]  # bottom
+
+                # 3D object dimensions: height, width, length (in meters)
+                #TODO: was swaped width and height
+            h = anno.bbox3d.height = label[7] + Config.dataset.add_height
+            w = anno.bbox3d.width  = label[8] + Config.dataset.add_width
+            l = anno.bbox3d.length = label[9] + Config.dataset.add_length
+
+                # 3D object location x,y,z in camera coordinates (in meters)
+            x = anno.bbox3d.x = label[10]
+            y = anno.bbox3d.y = label[11]
+            z = anno.bbox3d.z = label[12]
+                # Rotation ry around Y-axis in camera (!) coordinates [-pi..pi]
+            anno.bbox3d.yaw = label[13]
+            print("ANNO_YAW: ", anno.bbox3d.yaw)
+
+            c = np.cos(anno.bbox3d.yaw)
+            s = np.sin(anno.bbox3d.yaw)
+
+            Ry = anno.bbox3d.Ry = np.array([
+                [c, 0, s],
+                [0, 1, 0],
+                [-s, 0, c]
+            ])
+            # in camera "coordinates"
+            x_corners = [ l / 2,  l / 2,
+                         -l / 2, -l / 2,
+                          l / 2,  l / 2,
+                         -l / 2, -l / 2]
+            y_corners = [0, 0, 0, 0, h, h, h, h]
+            z_corners = [ w / 2, -w / 2,
+                         -w / 2,  w / 2,
+                          w / 2, -w / 2,
+                         -w / 2,  w / 2]
+
+
+                # x,y,z + distance between velo to cam
+            anno.bbox3d.shifts = np.array([x, y, z]) - (calib.R0_rect @ calib.Tr_velo_to_cam)[:-1, -1]
+
+            anno.bbox3d.corners = Ry.dot(
+                np.array([x_corners, y_corners, z_corners])) + anno.bbox3d.shifts.reshape((3, 1))
+
+            # TODO: convert via `calib.R0_rect @ calib.Tr_velo_to_cam` matrix
+            # Convert camera coordinates to point cloud
+            # + swap x <-> y because of Config.network.input_shape used lwh format
+            anno.bbox3d.velodyne2d.x_coord = anno.bbox3d.corners[0, :4] # x_corners
+            anno.bbox3d.velodyne2d.y_coord = anno.bbox3d.corners[2, :4] # z_corners
+            anno.bbox3d.velodyne2d.y_coord = -anno.bbox3d.corners[1, :4] # y_corners TODO: for research
+
+            anno.bbox3d.velodyne2d.x =  x  # z
+            anno.bbox3d.velodyne2d.y =  z  # -x
+            anno.bbox3d.velodyne2d.z = -y # TODO: for research
+
+            anno.bbox3d.velodyne2d.shifts = [anno.bbox3d.shifts[0], anno.bbox3d.shifts[2]]
+
+            # why we add pi/2?
+            # anno.bbox3d.velodyne2d.yaw = normalize_angle(-(anno.bbox3d.yaw + math.pi/2))   # [-pi..pi]
+            anno.bbox3d.velodyne2d.yaw = normalize_angle(-(anno.bbox3d.yaw))  # [-pi..pi]
+
+            print("RES ANNO_YAW: ", math.degrees(anno.bbox3d.velodyne2d.yaw))
+
+            anno.bbox3d.velodyne2d.Rz = np.array([
+                [ np.cos(anno.bbox3d.velodyne2d.yaw), np.sin(anno.bbox3d.velodyne2d.yaw)],
+                [-np.sin(anno.bbox3d.velodyne2d.yaw), np.cos(anno.bbox3d.velodyne2d.yaw)],
+            ])
+            anno.bbox3d.velodyne2d.Rz_inv = np.array([
+                [ np.cos(-anno.bbox3d.velodyne2d.yaw), np.sin(-anno.bbox3d.velodyne2d.yaw)],
+                [-np.sin(-anno.bbox3d.velodyne2d.yaw), np.cos(-anno.bbox3d.velodyne2d.yaw)],
+            ])
+
+        annotations.append(anno)
+        return annotations
+
+    def augment(self, points, annos, calib, path_and_name=None):
+        """
+        test augment functions
+        :return:
+        """
+        from augmentation.data_augmentation import augment_cloud
+        from structures.object_info import ObjectInfo
+        from augmentation.data_augmentation import AugmentParameters
+        from utils.utils import get_box_angle
+        from augmentation.utils.save_annot import save_cloud
+
+        Config = get_default_config()
+
+        CONFIG = Config
+
+        labels = []
+        for anno in annos:
+            angle = anno.bbox3d.velodyne2d.yaw
+            angle = normalize_angle(angle)
+            print(angle, anno.bbox3d.yaw)
+            bbox = [anno.bbox3d.velodyne2d.shifts[0],
+                    anno.bbox3d.velodyne2d.shifts[1],
+                    anno.bbox3d.length, anno.bbox3d.width,
+                    np.cos(angle), np.sin(angle)]
+            labels.append(ObjectInfo(bbox))
+
+        aug_obj = AugmentParameters()
+        aug_obj.generate_random_transform_params()
+
+        new_pcloud, new_labels = augment_cloud(aug_obj, points, labels, CONFIG)
+
+        list_info_labels = []
+        for label in new_labels:
+            list_info = ['Car']
+            list_info.extend([0] * 7)
+            list_info.append(label.bbox_size[2])
+            list_info.append(label.bbox_size[1])
+            list_info.append(label.bbox_size[0])
+            list_info.append(label.bbox_center[0])
+            list_info.append(label.bbox_center[2])
+            list_info.append(label.bbox_center[1])
+            list_info.append(-get_box_angle(label.cos_t, label.sin_t))
+            list_info = map(str, list_info)
+            s1 = ' '.join(list_info)
+            list_info_labels.append(s1)
+            if path_and_name != None:
+                result_str = '\n'.join(list_info_labels)
+        # make anno for return
+        anno = self.get_anno_without_file(list_info_labels, calib)
+
+        # save info about augment cloud
+        if path_and_name != None:
+            with open(path_and_name + ".txt", 'w') as outfile:
+                outfile.write(result_str)
+        return anno, new_pcloud
+
+
+
+
     #     @functools.lru_cache(maxsize=Config.settings.lru_cache_size)
     def get_annotations(self, index):
         path  = self.get_path_to_annotations(index)
@@ -406,60 +567,74 @@ class KittiDataset(torch.utils.data.Dataset):
 
     #     @functools.lru_cache(maxsize=Config.settings.lru_cache_size)
 
-    def get_learning_data(self, index):
-        input_discrete, points = self.get_velodyne_preproc(index, return_filtered=True)
-        output_class = np.zeros(Config.network.output_class_shape)
-        output_reg   = np.zeros(Config.network.output_reg_shape)
+    def get_learning_data(self, index, number_of_aug=1):
+        list_anno = []
+        list_clouds = []
+        list_output_reg = []
+        list_output_class = []
 
-        #         calib = self.get_calib(index)
-        annotations = self.get_annotations(index)
+        for i in number_of_aug:
+            # --------- augment--------- #
+            annotations = self.get_annotations(index)
+            input_discrete, points = self.get_velodyne_preproc(index, return_filtered=True)
+            calib = self.get_calib(index)
+            new_annotations, new_points = augment(points, annotations, calib)
+            input_discrete, points = KittiDataset.preprocess_raw_velodyne(new_points, self._geometry)
+            # -------------------------- #
 
-        annotations_filter = []
-        for anno in annotations:
-            points_in_center_bbox = anno.bbox3d.velodyne2d.Rz_inv.dot(
-                                    (points[:, [0, 1]] - anno.bbox3d.velodyne2d.shifts).T).T
-            mask = (-anno.bbox3d.width / 2 <= points_in_center_bbox[:, 1])  & \
-                   (points_in_center_bbox[:, 1] <= anno.bbox3d.width / 2)   & \
-                   (-anno.bbox3d.length / 2 <= points_in_center_bbox[:, 0]) & \
-                   (points_in_center_bbox[:, 0] <= anno.bbox3d.length / 2)
-            points_in_box = points[mask][:, [0, 1]]
-            if points_in_box.shape[0] == 0:
-                continue
+            # ------ preprocess anno ------ #
+            output_class = np.zeros(Config.network.output_class_shape)
+            output_reg   = np.zeros(Config.network.output_reg_shape)
 
-            points_dx_dy = np.array([anno.bbox3d.velodyne2d.x, anno.bbox3d.velodyne2d.y]) - points_in_box
-            # calculate coordinates in ?output? grid
-            points_x_y = (points_in_box - np.array([self._geometry.width_min, self._geometry.length_min])) / \
-                                                    self._geometry.discretization / \
-                                                    Config.network.in_out_ratio
+            annotations_filter = []
+            for anno in new_annotations:
+                points_in_center_bbox = anno.bbox3d.velodyne2d.Rz_inv.dot(
+                                        (points[:, [0, 1]] - anno.bbox3d.velodyne2d.shifts).T).T
+                mask = (-anno.bbox3d.width / 2 <= points_in_center_bbox[:, 1])  & \
+                       (points_in_center_bbox[:, 1] <= anno.bbox3d.width / 2)   & \
+                       (-anno.bbox3d.length / 2 <= points_in_center_bbox[:, 0]) & \
+                       (points_in_center_bbox[:, 0] <= anno.bbox3d.length / 2)
+                points_in_box = points[mask][:, [0, 1]]
+                if points_in_box.shape[0] == 0:
+                    continue
 
-            points_x_y = points_x_y.astype(np.int64)
-            c = np.cos(anno.bbox3d.velodyne2d.yaw)
-            s = np.sin(anno.bbox3d.velodyne2d.yaw)
-            w = anno.bbox3d.width
-            l = anno.bbox3d.length
+                points_dx_dy = np.array([anno.bbox3d.velodyne2d.x, anno.bbox3d.velodyne2d.y]) - points_in_box
+                # calculate coordinates in ?output? grid
+                points_x_y = (points_in_box - np.array([self._geometry.width_min, self._geometry.length_min])) / \
+                                                        self._geometry.discretization / \
+                                                        Config.network.in_out_ratio
 
-            for uniq_x_y in np.unique(points_x_y, axis=0):
-                dx, dy = points_dx_dy[(points_x_y == uniq_x_y).all(axis=1)].mean(axis=0)
-                #
-                with open('log_file.txt', 'a')as f:
-                    f.write(str(dx*Config.network.in_out_ratio*self._geometry.discretization)
-                            + ' ' + str(dy*Config.network.in_out_ratio*self._geometry.discretization) + '\n')
-                #
-                x, y = uniq_x_y
+                points_x_y = points_x_y.astype(np.int64)
+                c = np.cos(anno.bbox3d.velodyne2d.yaw)
+                s = np.sin(anno.bbox3d.velodyne2d.yaw)
+                w = anno.bbox3d.width
+                l = anno.bbox3d.length
 
-                output_reg[x, y, :] = (np.array(
-                    [c, s, dx, dy, np.log(w), np.log(l)]) - Config.dataset.reg.mean) / Config.dataset.reg.std
-                output_class[x, y, 0] = anno.cls
+                for uniq_x_y in np.unique(points_x_y, axis=0):
+                    dx, dy = points_dx_dy[(points_x_y == uniq_x_y).all(axis=1)].mean(axis=0)
+                    #
+                    with open('log_file.txt', 'a')as f:
+                        f.write(str(dx*Config.network.in_out_ratio*self._geometry.discretization)
+                                + ' ' + str(dy*Config.network.in_out_ratio*self._geometry.discretization) + '\n')
+                    #
+                    x, y = uniq_x_y
 
-            #             assert np.sum(np.isnan(output_reg)) == 0, np.sum(np.isnan(output_reg))
+                    output_reg[x, y, :] = (np.array(
+                        [c, s, dx, dy, np.log(w), np.log(l)]) - Config.dataset.reg.mean) / Config.dataset.reg.std
+                    output_class[x, y, 0] = anno.cls
 
-            # Save annotations with valid GT
-            annotations_filter.append(anno)
-            # print([x, y], anno.cls, [c, s, dx, dy, np.log(w), np.log(l)])
+                #             assert np.sum(np.isnan(output_reg)) == 0, np.sum(np.isnan(output_reg))
 
-        input_discrete = input_discrete.astype(np.float32)
-        output_class   = np.squeeze(output_class, axis=-1).astype(np.float32)
-        output_reg     = output_reg.astype(np.float32)
+                # Save annotations with valid GT
+                annotations_filter.append(anno)
+                # print([x, y], anno.cls, [c, s, dx, dy, np.log(w), np.log(l)])
 
-        return input_discrete, output_class, output_reg, annotations_filter
-
+            input_discrete = input_discrete.astype(np.float32)
+            output_class   = np.squeeze(output_class, axis=-1).astype(np.float32)
+            output_reg     = output_reg.astype(np.float32)
+        # save lists with augment data
+            list_clouds.append(input_discrete)
+            list_output_class.append(output_class)
+            list_output_reg.append(output_reg)
+            list_anno.append(annotations_filter)
+        return list_clouds, list_output_class, list_output_reg, list_anno

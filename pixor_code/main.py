@@ -54,7 +54,7 @@ def get_box_angle(cos_t, sin_t):
 
 def save_labels(out_path, name, labels: list, valeo_flag):
     """
-    Save labels as json file
+    Save labels as txt file
     :param name: name of file
     :param labels: list of ObjectInfo objects
     :param valeo_flag: if True - valeo dataset else - kitti
@@ -96,22 +96,26 @@ def save_labels(out_path, name, labels: list, valeo_flag):
 
 
 def save(cloud, cloud_path, cloud_name, labels, label_path):
+    """
+    main function to save cloud and label
+    :param cloud:
+    :param cloud_path:
+    :param cloud_name:
+    :param labels:
+    :param label_path:
+    :return:
+    """
     pcloud = inverter(cloud)
-
-    # labels = []
-    # for anno in new_labels:
-    #     bbox = [anno.bbox_center[1],
-    #             -anno.bbox_center[0],
-    #             anno.bbox_size[1], anno.bbox_size[0],
-    #             anno.cos_t, anno.sin_t]
-    #     labels.append(ObjectInfo(bbox))
-
     save_labels(label_path, cloud_name, labels, False)
     save_cloud(cloud_path, cloud_name + '.bin', pcloud)
 
 
 
 def augment():
+    """
+    test augment functions
+    :return:
+    """
     Config = get_default_config()
     path_to_velodyne = 'training/velodyne'
     dataset = get_data(Config, path_to_velodyne)
@@ -176,6 +180,13 @@ def augment():
     save(new_pcloud, cloud_path, cloud_name1, new_labels, label_path)
 
 def open_and_visualize(path_to_velodyne, name, index):
+    """
+    open_and_visualize  cloud and label for checking
+    :param path_to_velodyne:
+    :param name:
+    :param index:
+    :return:
+    """
     Config = get_default_config()
     dataset = [name]
 
