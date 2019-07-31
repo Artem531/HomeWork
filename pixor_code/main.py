@@ -240,6 +240,7 @@ if __name__ == '__main__':
 
     list_of_labels = []
 
+    # visualise results
     for idx, annos in enumerate(list_annos):
         labels = []
         for anno in annos:

@@ -229,8 +229,8 @@ def augment_cloud(aug_obj, pcloud, labels: list, CONFIG,  flag_transp_env=False)
     for label in labels:
         aug_obj.generate_random_transform_params()
         pobject = object_transformation.get_obj_points(pcloud, label)
-        from utils.visualize_utils import visualize
-        visualize([pobject], [[label]])
+        #from utils.visualize_utils import visualize
+        #visualize([pobject], [[label]])
         flip_flag     = random_flag()
         rotate_flag   = random_flag()
         distance_flag = random_flag()

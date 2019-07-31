@@ -267,6 +267,13 @@ class KittiDataset(torch.utils.data.Dataset):
     # %>-----------------------------------------------------<%#
 
     def get_anno_without_file(self, labels, calib):
+        """
+        This function is like get_annotations but it take list of string data which we usually take from open..(file)
+        in get_annotations()
+        :param labels: list of strings with data in Kitti dataset format
+        :param calib: calibration
+        :return: annotations
+        """
         annotations = []
         for label in labels:
             label = label.strip()
@@ -367,15 +374,16 @@ class KittiDataset(torch.utils.data.Dataset):
 
     def augment(self, points, annos, calib, path_and_name=None):
         """
-        augment functions
+        augment function
         :return: new anno, new cloud
         """
+        # I add this libs here because they need only here
         from augmentation.data_augmentation import augment_cloud
         from structures.object_info import ObjectInfo
         from augmentation.data_augmentation import AugmentParameters
         from utils.utils import get_box_angle
-        from augmentation.utils.save_annot import save_cloud
 
+        # get labels for aug
         labels = []
         for anno in annos:
             angle = anno.bbox3d.velodyne2d.yaw
@@ -386,11 +394,14 @@ class KittiDataset(torch.utils.data.Dataset):
                     np.cos(angle), np.sin(angle)]
             labels.append(ObjectInfo(bbox))
 
+        # gen random aug parameters
         aug_obj = AugmentParameters()
         aug_obj.generate_random_transform_params()
 
+        # do augment
         new_pcloud, new_labels = augment_cloud(aug_obj, points, labels, Config)
 
+        # make new anno and save it if you want
         list_info_labels = []
         for label in new_labels:
             list_info = ['Car']
@@ -557,6 +568,13 @@ class KittiDataset(torch.utils.data.Dataset):
     #     @functools.lru_cache(maxsize=Config.settings.lru_cache_size)
 
     def filter_annos(self, new_annotations, points):
+        """
+        This function filter anno which we don't see (out of bounds)
+        (Copy past from old file)
+        :param new_annotations:
+        :param points:
+        :return:  annotations_filter, output_class, output_reg
+        """
         annotations_filter = []
         output_class = np.zeros(Config.network.output_class_shape)
         output_reg = np.zeros(Config.network.output_reg_shape)
@@ -570,7 +588,6 @@ class KittiDataset(torch.utils.data.Dataset):
                    (points_in_center_bbox[:, 0] <= anno.bbox3d.length / 2)
             points_in_box = points[mask][:, [0, 1]]
             if points_in_box.shape[0] == 0:
-                #print('HI')
                 continue
 
             points_dx_dy = np.array([anno.bbox3d.velodyne2d.x, anno.bbox3d.velodyne2d.y]) - points_in_box
@@ -613,6 +630,8 @@ class KittiDataset(torch.utils.data.Dataset):
         :param add_ref_anno: key to add (True) or not to add (False) reference data
         :return: list_clouds, list_output_class, list_output_reg, list_anno
         """
+
+        # init return lists
         list_anno = []
         list_grid = []
         list_cloud = []
@@ -626,28 +645,9 @@ class KittiDataset(torch.utils.data.Dataset):
         # get points
         input_discrete, points = self.get_velodyne_preproc(index, return_filtered=True)
 
-        # from utils.visualize_utils import visualize
-        # from structures.object_info import ObjectInfo
-        # labels = []
-        # for anno in annotations:
-        #     angle = anno.bbox3d.velodyne2d.yaw
-        #     angle = normalize_angle(angle)
-        #     # print(angle, anno.bbox3d.yaw)
-        #     bbox = [anno.bbox3d.velodyne2d.shifts[0],
-        #             anno.bbox3d.velodyne2d.shifts[1],
-        #             anno.bbox3d.length, anno.bbox3d.width,
-        #             np.cos(angle), np.sin(angle)]
-        #     labels.append(ObjectInfo(bbox))
-        # visualize([points], [labels])
-
-        #print("shape points", np.shape(points))
-        #print("shape input_discrete", np.shape(input_discrete))
-
+        # if we want add ref data to lists
         if add_ref_anno == True:
-            add_ref_anno = False
-            #print(annotations)
             annotations_filter, output_class, output_reg = self.filter_annos(annotations, points)
-            #print(annotations_filter)
             input_discrete = input_discrete.astype(np.float32)
             output_class = np.squeeze(output_class, axis=-1).astype(np.float32)
             output_reg = output_reg.astype(np.float32)
@@ -659,37 +659,21 @@ class KittiDataset(torch.utils.data.Dataset):
             list_output_reg.append(output_reg)
             list_anno.append(annotations_filter)
 
+        # start gen new data
         for i in range(number_of_aug):
             # --------- augment--------- #
             new_annotations, new_points = self.augment(points, annotations, calib)
 
             # preprocess new cloud
             new_input_discrete, new_points = KittiDataset.preprocess_raw_velodyne(new_points, self._geometry, return_filtered = True)
+            # if we want clouds for visualisation
             if return_clouds == True:
                 list_cloud.append(new_points)
-            #print("shape new_input_discrete", np.shape(new_input_discrete))
-            #print("shape new_points", np.shape(new_points))
+
             # -------------------------- #
 
-            # ------ preprocess anno ------ #
-
-
-
+            # ------ preprocess anno (the same as before I just make it more compact )------ #
             new_annotations_filter, new_output_class, new_output_reg = self.filter_annos(new_annotations, new_points)
-
-            # from utils.visualize_utils import visualize
-            # from structures.object_info import ObjectInfo
-            # labels = []
-            # for anno in new_annotations_filter:
-            #     angle = anno.bbox3d.velodyne2d.yaw
-            #     angle = normalize_angle(angle)
-            #     # print(angle, anno.bbox3d.yaw)
-            #     bbox = [anno.bbox3d.velodyne2d.shifts[0],
-            #             anno.bbox3d.velodyne2d.shifts[1],
-            #             anno.bbox3d.length, anno.bbox3d.width,
-            #             np.cos(angle), np.sin(angle)]
-            #     labels.append(ObjectInfo(bbox))
-            # visualize([new_points], [labels])
 
             new_input_discrete = new_input_discrete.astype(np.float32)
             new_output_class   = np.squeeze(new_output_class, axis=-1).astype(np.float32)
@@ -700,6 +684,7 @@ class KittiDataset(torch.utils.data.Dataset):
             list_output_class.append(new_output_class)
             list_output_reg.append(new_output_reg)
             list_anno.append(new_annotations_filter)
+        # if we want clouds for visualisation
         if return_clouds == True:
             return list_cloud, list_grid, list_output_class, list_output_reg, list_anno
         return list_grid, list_output_class, list_output_reg, list_anno
