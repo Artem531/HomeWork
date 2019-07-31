@@ -622,7 +622,7 @@ class KittiDataset(torch.utils.data.Dataset):
         return annotations_filter, output_class, output_reg
 
 
-    def get_learning_data(self, index, number_of_aug=1, add_ref_anno = True, return_clouds = False):
+    def get_learning_data(self, index, number_of_aug=Config.augment.num, add_ref_anno = True, return_clouds = False):
         """
 
         :param index: index of anno

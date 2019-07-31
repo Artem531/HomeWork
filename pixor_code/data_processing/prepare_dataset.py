@@ -1,4 +1,4 @@
-from data_processing.kitti_datagen import KittiDataset
+from data_processing.kitti_datagen_experimental import KittiDataset
 from data_processing.kitti_datagen_src import KITTI
 import matplotlib.pyplot as plt
 import seaborn as sns

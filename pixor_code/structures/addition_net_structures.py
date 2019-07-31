@@ -127,28 +127,32 @@ class PixorModel:
         self.set_optimizer()
         total_losses = np.zeros(3)
 
-        for (grid, cls_target, reg_target, annos, pcloud) in tqdm(dataset,
+        for (list_grid, list_output_class, list_output_reg, list_anno) in tqdm(dataset,
                                                           desc=f'iter ({period})',
                                                           total=len(dataset),
                                                           leave=False):
+            for idx in range(len(list_grid)):
+                # unpack augment data
+                grid, cls_target, reg_target, annos = list_grid[idx], list_output_class[idx], list_output_reg[idx], list_anno[idx]
+                # the same train
+                with torch.set_grad_enabled(requires_grad):
+                    grid = grid.to(self.device)
+                    cls_target = cls_target.to(self.device)
+                    reg_target = reg_target.to(self.device)
 
-            with torch.set_grad_enabled(requires_grad):
-                grid = grid.to(self.device)
-                cls_target = cls_target.to(self.device)
-                reg_target = reg_target.to(self.device)
+                    cls_pred, reg_pred = self.model(grid)
+                    cls_loss, reg_loss = self.loss_fn(cls_pred, reg_pred, cls_target, reg_target)
+                    sum_loss = cls_loss + self.config_params.network.reg_loss_alpha * reg_loss
 
-                cls_pred, reg_pred = self.model(grid)
-                cls_loss, reg_loss = self.loss_fn(cls_pred, reg_pred, cls_target, reg_target)
-                sum_loss = cls_loss + self.config_params.network.reg_loss_alpha * reg_loss
+                    if period == Period.train:
+                        sum_loss.backward()
+                        self.optimizer.step()
+                        self.optimizer.zero_grad()
 
-                if period == Period.train:
-                    sum_loss.backward()
-                    self.optimizer.step()
-                    self.optimizer.zero_grad()
+                total_losses += np.array([cls_loss.item(), reg_loss.item(), sum_loss.item()])
 
-            total_losses += np.array([cls_loss.item(), reg_loss.item(), sum_loss.item()])
-
-        total_losses /= len(dataset)
+        # add * because we expand our dataset by +(num of augment data) every step
+        total_losses /= (len(dataset) * len(list_grid))
 
         period_str = str(period)
         self.summary[period_str].history.cls_loss.append(total_losses[0])

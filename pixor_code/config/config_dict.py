@@ -5,6 +5,10 @@ import numpy as np
 # TODO: удалить заглушки
 def get_default_config(main_dataset_path='/home/artem/MAIN/test_dataset'):
     Config = Dict()
+
+    # num of augment data
+    Config.augment.num = 10
+
     Config.random_state = 42
     Config.use_npy = False
 
