@@ -1,6 +1,6 @@
-### you need run main.py from pixor_code
+# You need run main.py from pixor_code
 
-# HomeWork
+### HomeWork
 Please, check this functions:
 1) get_learning_data in kitti_datagen_exp..
 2) filter_annos in kitti_datagen_exp..
