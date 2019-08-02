@@ -1,5 +1,6 @@
 # You need run main.py from pixor_code it is my main folder in pycharm
-## I remind that this is cpu version, please, add "check" functions below in your progect to make it gpu version
+## I remind that this is cpu version, please, add "check" functions below in your progect and change train_model(self, data_loaders, period) in addition_net_structures like I have to make it gpu version
+### Next time I will check all unnecessary folders and delete them, sorry.
 
 ### HomeWork
 Please, check this functions:
