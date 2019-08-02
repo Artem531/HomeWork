@@ -1,3 +1,5 @@
+### you need run main.py from pixor_code
+
 # HomeWork
 Please, check this functions:
 1) get_learning_data in kitti_datagen_exp..
