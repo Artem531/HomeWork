@@ -1,4 +1,5 @@
-# You need run main.py from pixor_code
+# You need run main.py from pixor_code it is my main folder in pycharm
+## I remind that this is cpu version, please, add "check" functions below in your progect to make it gpu version
 
 ### HomeWork
 Please, check this functions:
