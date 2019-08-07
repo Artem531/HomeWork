@@ -101,26 +101,32 @@ def get_predictins(data_loaders_test,
     model_weights = mt.models_path / f'validate_sum_loss{addition}.pth'
     mt.load_model(model_weights)
 
-    for (grid, cls_target, reg_target, annos, pcloud) in tqdm(data_loaders_test,
+    for (list_grid, list_output_class, list_output_reg, list_anno) in tqdm(data_loaders_test,
                                                       desc=f'iter ({period})',
                                                       total=len(data_loaders_test),
                                                       leave=False):
-        if annos:
-            cls_target, reg_target, cls_pred, reg_pred = mt.get_predict(grid, cls_target, reg_target)
-            predicted_boxes, heatmap, scores = process_predictions(cls_pred, reg_pred)
-            if predicted_boxes is not None:
-                heatmap_collection.append(heatmap)
-                dataset_label_list.append([create_from_src_anno(anno) for anno in annos])
-                dataset_predicted_objects.append([create_from_predict(box) for box in predicted_boxes])
-                dataset_scores.append([score.item() for score in scores])
-                # ---------------------------
-                match_label_heatmap(heatmap_collection[-1],
-                                    pcloud.squeeze(0).cpu().numpy(),
-                                    dataset_label_list[-1],
-                                    dataset_predicted_objects[-1])
-                # ---------------------------
-                if show_heatmap:
-                    plot_label_map(heatmap)
+        for idx in range(len(list_grid)):
+            # unpack augment data
+            print(idx)
+            grid, cls_target, reg_target, annos = list_grid[idx], list_output_class[idx], list_output_reg[idx], \
+                                                  list_anno[idx]
+            # the same inference
+            if annos:
+                cls_target, reg_target, cls_pred, reg_pred = mt.get_predict(grid, cls_target, reg_target)
+                predicted_boxes, heatmap, scores = process_predictions(cls_pred, reg_pred)
+                if predicted_boxes is not None:
+                    heatmap_collection.append(heatmap)
+                    dataset_label_list.append([create_from_src_anno(anno) for anno in annos])
+                    dataset_predicted_objects.append([create_from_predict(box) for box in predicted_boxes])
+                    dataset_scores.append([score.item() for score in scores])
+                    # ---------------------------
+                    # match_label_heatmap(heatmap_collection[-1],
+                    #                     pcloud.squeeze(0).cpu().numpy(),
+                    #                     dataset_label_list[-1],
+                    #                     dataset_predicted_objects[-1])
+                    # ---------------------------
+                    if show_heatmap:
+                        plot_label_map(heatmap)
 
 
     torch.cuda.empty_cache()
