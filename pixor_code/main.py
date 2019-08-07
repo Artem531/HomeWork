@@ -56,11 +56,11 @@ if __name__ == '__main__':
     #     visualize([list_clouds[idx]], [labels])
 
     ### Train model
-    path_to_filelist = '/home/artem/MAIN/pixor_code/train_val_info'
+    path_to_filelist = '/home/artem/luxoft_test_git/HomeWork/pixor_code/train_val_info'
     path_to_velodyne = 'training/velodyne'
     _, data_loaders = prepare_data(Config, path_to_filelist, path_to_velodyne)
-    train_model.train_net(Config, data_loaders)
+    #train_model.train_net(Config, data_loaders)
     inference.create_kpi_json(data_loaders.test,
                              threshold=0.5,
-                            date_time='2019-07-31')
+                            date_time='2019-08-08')
 

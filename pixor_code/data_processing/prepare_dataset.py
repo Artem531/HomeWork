@@ -44,10 +44,16 @@ def set_default_settings():
 
 
 def get_data(Config, path_to_velodyne):
-    path_clouds_config = Config.dataset.path.glob(path_to_velodyne + '/*.bin')
-    X_train_test_val = list(map(lambda p: p.stem, path_clouds_config))
+    import os
+    # Does not work sometimes. I don't know why
+    #path_clouds_config = Config.dataset.path.glob(path_to_velodyne + '/*.bin')
+    #X_train_test_val = list(map(lambda p: p.stem, path_clouds_config))
+    #X_train_test_val= X_train_test_val if Config.dataset.frame_range is None \
+    #                                   else X_train_test_val[:Config.dataset.frame_range]
+
+    X_train_test_val = os.listdir(path_to_velodyne)
     X_train_test_val= X_train_test_val if Config.dataset.frame_range is None \
-                                       else X_train_test_val[:Config.dataset.frame_range]
+                                      else X_train_test_val[:Config.dataset.frame_range]
     X_train_test_val.sort()
     return X_train_test_val
 
@@ -74,6 +80,7 @@ def prepare_data(Config,
                           'test':  []})
     if create_new_dataset:
         X_train_test_val = get_data(Config, path_to_velodyne)
+        print(X_train_test_val)
         X = gen_fl.create_txt_tain_val_lists(path_to_filelist,
                                               X_train_test_val,
                                               config_param,
