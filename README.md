@@ -1,19 +1,11 @@
-# You need run main.py from pixor_code it is my main folder in pycharm
-## I remind that this is cpu version, please, add "check" functions below in your progect and change train_model(self, data_loaders, period) in addition_net_structures like I have to make it gpu version
-### Next time I will check all unnecessary folders and delete them, sorry.
+# This is ver of pixor with augmentation
+## Now it can work on PC with GPU (tested on gtx 1060 ) 
 
-### HomeWork
-Please, check this functions:
-1) get_learning_data in kitti_datagen_exp..
-2) filter_annos in kitti_datagen_exp..
-3) get_anno_without_file in kitti_datagen_exp..
-
-
-I change get_learning_data in kitti_datagen_exp...
-Now it receive:
-1) param index: index of cloud and anno which you want to aug
-2) param number_of_aug: number of augment data
-3) param return_clouds: key "return_clouds" if True return optional list of clouds for visualisation
-return: list_clouds (if return_clouds == True), list_grid, list_output_class, list_output_reg, list_annos
-
-
+### How to run
+1) You need run main.py from pixor_code it is my main folder in pycharm
+2) Add your path to velodyne and filekist in main.py
+3) Add your main_dataset_path in get_default_config from config_dict.py
+4) Add standard pixor env to PyCharm
+5) Add in interpreter Paths:
+   1. path to augmentation folder
+   2. path to pixor_code folder
