@@ -46,10 +46,10 @@ class PixorModel:
         if not train_flag:
             decode_flag = args[1]
             model.pixor.set_decode(decode_flag)
-        self.device = 'cpu'
-        # self.device = 'cuda: 0' if torch.cuda.is_available() else 'cpu'
-        # if self.device == 'cuda: 0' and torch.cuda.device_count() > 1:
-        #     print("Let's use", torch.cuda.device_count(), "GPUs!")
+        #self.device = 'cpu'
+        self.device = 'cuda: 0' if torch.cuda.is_available() else 'cpu'
+        if self.device == 'cuda: 0' and torch.cuda.device_count() > 1:
+            print("Let's use", torch.cuda.device_count(), "GPUs!")
         model = nn.DataParallel(model)
         self.model = model
 
@@ -104,7 +104,8 @@ class PixorModel:
         return cls_target, reg_target, cls_pred, reg_pred
 
     def load_model(self, model_weights):
-        state_dict = torch.load(model_weights, map_location=torch.device('cpu'))
+        # state_dict = torch.load(model_weights, map_location=torch.device('cpu'))
+        state_dict = torch.load(model_weights)
         self.model.to(self.device)
         self.model.load_state_dict(state_dict)
 

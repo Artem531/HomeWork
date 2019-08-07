@@ -3,7 +3,7 @@ from pathlib import Path
 import numpy as np
 
 # TODO: удалить заглушки
-def get_default_config(main_dataset_path='/home/artem/MAIN/test_dataset'):
+def get_default_config(main_dataset_path='/home/artem/luxoft_test_git/HomeWork/pixor_code'):
     Config = Dict()
 
     # num of augment data
@@ -89,7 +89,7 @@ def get_default_config(main_dataset_path='/home/artem/MAIN/test_dataset'):
     Config.network.momentum = 0.9
 
     Config.network.reg_loss_alpha = 1
-    Config.network.device = 'cpu'
+    Config.network.device = 'gpu'
 
 
     Config.post_proc.cls_threshold_val = 0.5
